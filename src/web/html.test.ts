@@ -89,23 +89,23 @@ describe("correction", () => {
 
   test("strikes the said words and shows the better words after them", () => {
     expect(correction("more fast", "faster")).toBe(
-      '<span class="fix" data-b="faster"><del class="said">more fast</del> <ins class="better">faster</ins></span>',
+      '<span class="fix"><del class="said">more fast</del> <ins class="better">faster</ins></span>',
     );
   });
 
   test("a known kind picks its mark class, an unknown or missing kind keeps the plain strike", () => {
-    expect(correction("a", "b", undefined, "word")).toContain('<span class="fix k-word" data-b="b">');
+    expect(correction("a", "b", undefined, "word")).toContain('<span class="fix k-word">');
     expect(correction("a", "b", undefined, "sound")).toContain('class="fix k-sound"');
-    expect(correction("a", "b", undefined, "constructor")).toContain('<span class="fix" ');
+    expect(correction("a", "b", undefined, "constructor")).toContain('<span class="fix">');
     expect(correction("a", "b")).not.toContain("k-");
   });
 
   test("a filler loops only the words the better version drops", () => {
     expect(correction("to, you know, convert", "to convert", 2, "filler")).toBe(
-      '<span class="fix k-filler" data-b="to convert">to, <del class="said cut" style="--i:2">you know,</del> convert <ins class="better">to convert</ins></span>',
+      '<span class="fix k-filler">to, <del class="said cut" style="--i:2">you know,</del> convert <ins class="better">to convert</ins></span>',
     );
     expect(correction("like um", "pause", undefined, "filler")).toBe(
-      '<span class="fix" data-b="pause"><del class="said">like um</del> <ins class="better">pause</ins></span>',
+      '<span class="fix"><del class="said">like um</del> <ins class="better">pause</ins></span>',
     );
     expect(correction("um", "", undefined, "filler")).toBe(
       '<span class="fix k-filler"><del class="said cut">um</del></span>',
@@ -119,15 +119,24 @@ describe("correction", () => {
     expect(correction("so it does", "so it did", 0, "grammar")).not.toContain("fix-long");
   });
 
-  test("escapes the better words in the width-reserving attribute", () => {
-    expect(correction("a", '"><script>')).toContain('data-b="&quot;&gt;&lt;script&gt;"');
+  test("a long fix keeps the said words as plain inline text and puts the better words on their own line after it, escaped", () => {
+    expect(correction("go", "went to <b>the</b> market")).toBe(
+      '<span class="fix fix-long"><del class="said">go</del></span><ins class="better fix-under"><span class="caret" aria-hidden="true"></span>went to &lt;b&gt;the&lt;/b&gt; market</ins>',
+    );
+  });
+
+  test("a long fix inside a sentence goes after the whole sentence, not after the said words", () => {
+    const html = proofLine("go", "went to the market yesterday", 0, "grammar", "so I go there now ok");
+    expect(html).toBe(
+      '<p class="line">so I <span class="fix fix-long k-grammar"><del class="said" style="--i:0">go</del></span> there now ok<ins class="better fix-under"><span class="caret" aria-hidden="true"></span>went to the market yesterday</ins></p>'.replace("fix fix-long k-grammar", "fix k-grammar fix-long"),
+    );
   });
 
   test("escapes both parts and omits the insert when there is no better text", () => {
     const html = correction("<b>x</b>", "");
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
     expect(html).not.toContain("<ins");
-    expect(html).not.toContain("data-b");
+    expect(html).not.toContain("<ins");
     expect(correction("a", "<i>")).toContain("&lt;i&gt;");
   });
 });
@@ -373,9 +382,10 @@ describe("style.css rules", () => {
   });
 
   test("writes the fix above the words, and under them only for a fix flagged long", () => {
-    expect(css).toMatch(/\.fix ins \{ position: absolute;[^}]*bottom: calc\(100% - 1\.2em\)/);
-    expect(css).toMatch(/\.fix::after \{ content: attr\(data-b\); display: block; height: 0;[^}]*visibility: hidden/);
-    expect(css).toMatch(/\.fix\.fix-long ins \{ position: static; display: block;/);
+    expect(css).toMatch(/\.fix ins \{ position: absolute; left: 0; bottom: 100%; width: max-content;/);
+    expect(css).not.toContain("attr(data-b)");
+    expect(css).toMatch(/\.fix \{ position: relative; \}/);
+    expect(css).toMatch(/\.fix-under \{ display: block;/);
     expect(css).not.toContain("@container");
     expect(css).toMatch(/\.line \{[^}]*overflow-wrap: anywhere;/);
   });

@@ -37,7 +37,7 @@
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; color-scheme: light dark; }
 body { margin: 0; padding: 32px 24px 80px; background: var(--desk); color: var(--ink); font: 400 18px/1.55 var(--serif); font-variant-numeric: lining-nums tabular-nums; }
-.sheet { max-width: 900px; margin: 0 auto; padding: 24px 32px 56px; background: var(--sheet); border: 1px solid var(--rule); }
+.sheet { overflow-x: clip; max-width: 900px; margin: 0 auto; padding: 24px 32px 56px; background: var(--sheet); border: 1px solid var(--rule); }
 @media (max-width: 719px) {
   body { padding: 10px 8px 56px; }
   .sheet { padding: 16px 16px 40px; }
@@ -139,10 +139,10 @@ label input, label textarea { font: 400 18px/1.4 var(--serif); }
 .mark .heard, .mark .practice { grid-column: 1; }
 
 /* The correction mark: the fix is written above the marked-out words. */
-.fix { position: relative; display: inline-block; max-width: 100%; padding-top: 1.2em; vertical-align: baseline; line-height: 1.45; }
-.fix:not([data-b]) { padding-top: 0.15em; }
-.fix::after { content: attr(data-b); display: block; height: 0; overflow: hidden; visibility: hidden; font: italic 400 18px/1.2 var(--serif); }
-.fix ins { position: absolute; left: 0; right: 0; bottom: calc(100% - 1.2em); color: var(--blue); text-decoration: none; font: italic 400 18px/1.2 var(--serif); }
+.fix { position: relative; }
+.line:has(.fix:not(.fix-long) ins) { line-height: 2.25; }
+
+.fix ins { position: absolute; left: 0; bottom: 100%; width: max-content; max-width: 30em; margin-bottom: -0.15em; color: var(--blue); text-decoration: none; font: italic 400 18px/1.2 var(--serif); }
 .fix del { color: var(--graphite); text-decoration: none; background: linear-gradient(var(--red), var(--red)) no-repeat 0 60% / 100% 1.5px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 @keyframes strike { from { background-size: 0% 1.5px; } to { background-size: 100% 1.5px; } }
 [data-page="today"] .fix del { animation: strike 420ms ease-out both; animation-delay: calc(min(var(--i, 0), 17) * 50ms); }
@@ -152,10 +152,10 @@ label input, label textarea { font: 400 18px/1.4 var(--serif); }
 .fix .cut::after { content: ""; position: absolute; right: -12px; top: -9px; width: 14px; height: 16px; background: var(--red); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M1 15 C6 10 9 6 9 3 C9 0 5 0 5 3 C5 7 9 9 13 8' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M1 15 C6 10 9 6 9 3 C9 0 5 0 5 3 C5 7 9 9 13 8' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .fix.k-word del { padding: 0 7px; border: 1.5px solid var(--blue); border-radius: 50% 48% 50% 46% / 58% 52% 50% 55%; }
 .fix.k-sound del { text-decoration: underline dotted var(--red) 2px; text-underline-offset: 5px; }
-/* A long fix goes under the words instead of above them, on any width. */
-.fix.fix-long { max-width: min(100%, 24em); vertical-align: top; padding-top: 0.15em; line-height: 1.5; }
-.fix.fix-long::after { display: none; }
-.fix.fix-long ins { position: static; display: block; margin-top: 2px; line-height: 1.3; }
+/* A long fix is not written above the words: the sentence flows as plain text and the fix sits on its own line below it. */
+.fix-under { display: block; margin-top: 2px; color: var(--blue); text-decoration: none; font: italic 400 18px/1.35 var(--serif); }
+.fix-under .caret { margin: 0 8px 0 2px; vertical-align: 2px; }
+
 @media (prefers-reduced-motion: reduce) { [data-page="today"] .fix del { animation: none; } }
 @media (forced-colors: active) {
   .fix:not(.k-filler):not(.k-word):not(.k-sound) del { background: none; text-decoration: line-through; }

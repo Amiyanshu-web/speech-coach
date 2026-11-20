@@ -196,7 +196,7 @@ describe("repeatsPage", () => {
   test("shows the example as a correction mark on its own line, with the kind in italic", async () => {
     ["2026-11-14", "2026-11-15", "2026-11-16"].forEach((d, i) => addIssue(i, d, "mark-pat"));
     const { html } = await get();
-    expect(html).toMatch(/<p class="line"><span class="fix k-grammar" data-b="better-mark-pat"><del class="said">said-mark-pat<\/del> <ins class="better">better-mark-pat<\/ins><\/span><\/p>/);
+    expect(html).toMatch(/<p class="line"><span class="fix k-grammar"><del class="said">said-mark-pat<\/del> <ins class="better">better-mark-pat<\/ins><\/span><\/p>/);
     expect(html).toContain('<em class="kind">grammar</em>');
     expect(html).not.toContain("<table");
     expect(html).not.toContain('class="bar');

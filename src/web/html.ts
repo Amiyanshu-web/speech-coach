@@ -126,43 +126,51 @@ export const cutPhrase = (said: string, better: string, attrs = ""): string | nu
 const LONG_FIX = 28;
 const LONG_MARGIN = 12;
 
-/**
- * The correction mark: the spoken words marked out, the better words written above them.
- * The kind picks the mark (strike, delete loop, circle, dotted underline); the index orders the pen strike animation.
- * data-b repeats the better words so the CSS can reserve their width above a short phrase.
- * A long fix is flagged so the CSS writes it under the words instead.
- */
-export const correction = (said: string, better: string, index?: number, kind?: string): string => {
+/** A mark split in two: the marked-out words, and the fix when it must be written under the sentence instead of above the words. */
+const markParts = (said: string, better: string, index?: number, kind?: string): { mark: string; under: string } => {
   const attrs = index === undefined ? "" : ` style="--i:${index}"`;
   const cut = kind === "filler" ? cutPhrase(said, better, attrs) : null;
   const known = kind !== undefined && KIND_CODE.has(kind) && (kind !== "filler" || cut !== null);
   const long = better.length > LONG_FIX || better.length > said.length + LONG_MARGIN;
-  return `<span class="fix${known ? ` k-${kind}` : ""}${long ? " fix-long" : ""}"${
-    better === "" ? "" : ` data-b="${escapeHtml(better)}"`
-  }>${cut ?? `<del class="said"${attrs}>${escapeHtml(said)}</del>`}${
-    better === "" ? "" : ` <ins class="better">${escapeHtml(better)}</ins>`
-  }</span>`;
+  const body = cut ?? `<del class="said"${attrs}>${escapeHtml(said)}</del>`;
+  const fix = escapeHtml(better);
+  return {
+    mark: `<span class="fix${known ? ` k-${kind}` : ""}${long ? " fix-long" : ""}">${body}${
+      better === "" || long ? "" : ` <ins class="better">${fix}</ins>`
+    }</span>`,
+    under: better !== "" && long ? `<ins class="better fix-under"><span class="caret" aria-hidden="true"></span>${fix}</ins>` : "",
+  };
+};
+
+/**
+ * The correction mark: the spoken words marked out, the better words written above them.
+ * The kind picks the mark (strike, delete loop, circle, dotted underline); the index orders the pen strike animation.
+ * A long fix flows as plain text and its better words go on their own line under it.
+ */
+export const correction = (said: string, better: string, index?: number, kind?: string): string => {
+  const { mark, under } = markParts(said, better, index, kind);
+  return mark + under;
 };
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The mistake inside its sentence: a few words either side of the spoken words, or the mark alone when they are not in the text. */
 export const proofLine = (said: string, better: string, index: number | undefined, kind: string, heard?: string | null): string => {
-  const mark = correction(said, better, index, kind);
+  const { mark, under } = markParts(said, better, index, kind);
   const phrase = said.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
   const edge = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
   const found =
     heard && phrase !== ""
       ? new RegExp(`${edge(said.trim()[0]) ? "(?<![\\p{L}\\p{N}])" : ""}${phrase}${edge(said.trim().at(-1)) ? "(?![\\p{L}\\p{N}])" : ""}`, "iu").exec(heard)
       : null;
-  if (!heard || !found) return `<p class="line">${mark}</p>`;
+  if (!heard || !found) return `<p class="line">${mark}${under}</p>`;
   const beforeRaw = heard.slice(0, found.index);
   const afterRaw = heard.slice(found.index + found[0].length);
   const before = (/(?:\S+\s+){0,3}\S+\s+$/.exec(beforeRaw)?.[0] ?? "").trimStart();
   const after = /^(?:\s*[^\s]+){0,4}/.exec(afterRaw)?.[0] ?? "";
   const cutBefore = beforeRaw.trim().length > before.trim().length;
   const cutAfter = afterRaw.trim().length > after.trim().length;
-  return `<p class="line">${cutBefore ? "&hellip; " : ""}${escapeHtml(before)}${mark}${escapeHtml(after)}${cutAfter ? " &hellip;" : ""}</p>`;
+  return `<p class="line">${cutBefore ? "&hellip; " : ""}${escapeHtml(before)}${mark}${escapeHtml(after)}${cutAfter ? " &hellip;" : ""}${under}</p>`;
 };
 
 const FONTS =
