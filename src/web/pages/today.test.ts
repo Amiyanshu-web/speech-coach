@@ -303,17 +303,30 @@ describe("todayPage layout", () => {
     addIssue("d1", TODAY);
     const { html } = await get();
     expect(html).toContain(
-      '<li><span class="fix"><del class="said" style="--i:0">more fast</del> <ins class="better">faster</ins></span><span class="reason">comparative form</span></li>',
+      '<li class="mark"><p class="line"><span class="fix k-grammar" data-b="faster"><del class="said" style="--i:0">more fast</del> <ins class="better">faster</ins></span></p><p class="note"><span class="ring" aria-hidden="true">gr</span><span class="reason">comparative form</span></p>',
     );
+  });
+
+  test("each issue and lesson item takes the mark of its kind and a circled code in the margin note", async () => {
+    addDictation("d1", TODAY);
+    addIssue("d1", TODAY, { kind: "filler", said: "like check", better: "check" });
+    addIssue("d1", TODAY, { kind: "word", said: "w1", better: "w2" });
+    addLesson(TODAY);
+    const { html } = await get();
+    expect(html).toContain('<span class="fix k-filler" data-b="check"><del class="said" style="--i:3"><span class="cut">like</span> check</del>');
+    expect(html).toContain('<span class="fix k-word" data-b="w2">');
+    expect(html).toContain('<p class="note"><span class="ring" aria-hidden="true">fl</span><span class="reason">');
+    expect(html).toContain('<p class="note"><span class="ring" aria-hidden="true">gr</span><span class="kind">Grammar</span></p><p class="practice">Say faster ten times.</p>');
   });
 
   test("renders the 5 new words with meaning, example and what the person said", async () => {
     addWords(TODAY);
     const { html } = await get();
     expect(html.match(/class="entry"/g)?.length).toBe(5);
-    expect(html).toContain('<strong class="word">alpha</strong> meaning of alpha');
+    expect(html).toContain('<strong class="word">alpha</strong></p><p class="meaning">meaning of alpha</p>');
     expect(html).toContain("Words for today");
     expect(html).toContain('<p class="example">example of alpha</p>');
+    expect(html).toContain('<p class="hw"><span class="caret" aria-hidden="true"></span><strong class="word">alpha</strong>');
     expect(html).toContain("<em>sentence with alpha</em>");
   });
 
@@ -341,7 +354,7 @@ describe("todayPage layout", () => {
     ]);
     const { status, html } = await get();
     expect(status).toBe(200);
-    expect(html).toContain('<li><span class="fix"><del class="said" style="--i:0">a</del> <ins class="better">b</ins></span>');
+    expect(html).toContain('<li class="mark"><p class="line"><span class="fix" data-b="b"><del class="said" style="--i:0">a</del> <ins class="better">b</ins></span></p><p class="note"><span class="kind">constructor</span></p>');
   });
 
   test("puts You said and the person's sentence on their own grey line", async () => {

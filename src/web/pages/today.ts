@@ -1,5 +1,5 @@
 import { addDays, parseWisprTimestamp, todayLocal } from "../../domain/time";
-import { correction, escapeHtml, htmlResponse, layout, type Handler, type Mood } from "../html";
+import { correction, escapeHtml, htmlResponse, kindLabel, kindRing, layout, type Handler, type Mood } from "../html";
 
 type LessonItem = { kind: string; pattern: string; said: string; better: string; practice: string };
 type IssueRow = {
@@ -143,7 +143,7 @@ const issuesSection = (issues: readonly IssueRow[], now: Date, nextMark: () => n
         `<section class="issue-group" data-kind="${g.kind}"><h3>${g.label}</h3><ul class="plain issue">${g.rows
           .map(
             (i) =>
-              `<li>${correction(i.said, i.better, nextMark())}<span class="reason">${escapeHtml(i.reason)}</span>${heardBlock(i, now)}</li>`,
+              `<li class="mark"><p class="line">${correction(i.said, i.better, nextMark(), i.kind)}</p><p class="note">${kindRing(i.kind)}<span class="reason">${escapeHtml(i.reason)}</span></p>${heardBlock(i, now)}</li>`,
           )
           .join("")}</ul></section>`,
     )
@@ -182,14 +182,17 @@ export const todayPage: Handler = (req, ctx) => {
   const mood = moodOf({ words: spoken.n, issues: counted }, earlier);
   const lesson = lessonRow
     ? `<section class="lesson"><h2>Lesson</h2><ul class="plain lesson-list">${parseLesson(lessonRow.json)
-        .map((i) => `<li>${correction(i.said, i.better, nextMark())}<p class="practice">${escapeHtml(i.practice)}</p></li>`)
+        .map(
+          (i) =>
+            `<li class="mark"><p class="line">${correction(i.said, i.better, nextMark(), i.kind)}</p><p class="note">${kindRing(i.kind)}<span class="kind">${escapeHtml(kindLabel(i.kind))}</span></p><p class="practice">${escapeHtml(i.practice)}</p></li>`,
+        )
         .join("")}</ul></section>`
     : "";
   const wordsSection = words.length
     ? `<section class="words"><h2>Words for today</h2><ul class="plain entries">${words
         .map(
           (w) =>
-            `<li class="entry"><p><strong class="word">${escapeHtml(w.word)}</strong> ${escapeHtml(w.meaning)}</p><p class="example">${escapeHtml(w.example)}</p><p class="you-said">You said: <em>${escapeHtml(w.from_sentence)}</em></p></li>`,
+            `<li class="entry"><p class="hw"><span class="caret" aria-hidden="true"></span><strong class="word">${escapeHtml(w.word)}</strong></p><p class="meaning">${escapeHtml(w.meaning)}</p><p class="example">${escapeHtml(w.example)}</p><p class="you-said">You said: <em>${escapeHtml(w.from_sentence)}</em></p></li>`,
         )
         .join("")}</ul></section>`
     : "";

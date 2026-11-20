@@ -1,5 +1,5 @@
 import { addDays, todayLocal } from "../../domain/time";
-import { correction, escapeHtml, htmlResponse, layout, shortDate, type Handler } from "../html";
+import { correction, escapeHtml, htmlResponse, kindRing, layout, shortDate, type Handler } from "../html";
 
 export type RepeatRow = { pattern: string; kind: string; said: string; better: string; day: string };
 export type RepeatItem = {
@@ -84,11 +84,30 @@ export const mergeRepeats = (
   };
 };
 
+const GATE = 5;
+
+/** One tally group: up to four upright strokes, and a diagonal across them when it holds five. */
+const tallyGroup = (n: number): string => {
+  const strokes = Array.from({ length: Math.min(n, GATE - 1) }, (_, j) => {
+    const x = 4 + j * 5;
+    return `<line x1="${x}" y1="2" x2="${x + (j % 2 ? 0.6 : -0.4)}" y2="18"/>`;
+  }).join("");
+  const gate = n === GATE ? '<line x1="1" y1="15" x2="24" y2="5"/>' : "";
+  const width = n === GATE ? 26 : n * 5 + 2;
+  return `<svg viewBox="0 0 ${width} 20" aria-hidden="true" focusable="false">${strokes}${gate}</svg>`;
+};
+
+/** A count drawn as proofreader's tally marks: groups of five, the fifth struck across the four. */
+export const tally = (count: number): string =>
+  `<span class="tally" aria-hidden="true">${Array.from({ length: Math.ceil(count / GATE) }, (_, g) =>
+    tallyGroup(Math.min(GATE, count - g * GATE)),
+  ).join("")}</span>`;
+
 const entries = (items: readonly RepeatItem[], fixed: boolean): string =>
   `<ul class="plain entries${fixed ? " fixed" : ""}">${items
     .map(
       (i) =>
-        `<li class="entry"><p><strong class="word">${escapeHtml(patternLabel(i.pattern))}</strong> <em class="kind">${escapeHtml(i.kind.toLowerCase())}</em> <span class="grey"><span class="num">${i.count}</span> days, ${shortDate(i.first)} to ${shortDate(i.last)}${fixed ? ", <em>fixed</em>" : ""}</span></p><p>${correction(i.said, i.better)}</p></li>`,
+        `<li class="entry"><p class="hw"><strong class="word">${escapeHtml(patternLabel(i.pattern))}</strong>${tally(i.count)}</p><p class="line">${correction(i.said, i.better, undefined, i.kind)}</p><p class="note">${kindRing(i.kind)}<em class="kind">${escapeHtml(i.kind.toLowerCase())}</em> <span class="grey"><span class="num">${i.count}</span> days, ${shortDate(i.first)} to ${shortDate(i.last)}${fixed ? ", <em>fixed</em>" : ""}</span></p></li>`,
     )
     .join("")}</ul>`;
 

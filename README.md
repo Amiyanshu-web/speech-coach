@@ -114,6 +114,7 @@ Do not paste keys into the terminal or into any file inside the repo.
 ```sh
 bun run check      # type check + all tests
 bun run web        # start the website by hand, then open http://127.0.0.1:4777
+                   # SPEECH_COACH_PORT=4790 bun run web  uses another port, for example beside the live site
 ```
 
 ### Start the background jobs

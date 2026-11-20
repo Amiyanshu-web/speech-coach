@@ -129,9 +129,17 @@ export const handleRequest = async (
   }
 };
 
+const DEFAULT_PORT = 4777;
+
+/** The port from SPEECH_COACH_PORT, or 4777 when it is unset or not a whole number from 1 to 65535. */
+export const portFromEnv = (value: string | undefined): number => {
+  const n = Number(value);
+  return value !== undefined && /^\d+$/.test(value) && n >= 1 && n <= 65535 ? n : DEFAULT_PORT;
+};
+
 export const startServer = ({
   db,
-  port = 4777,
+  port = DEFAULT_PORT,
   log,
   now,
   readAudio,

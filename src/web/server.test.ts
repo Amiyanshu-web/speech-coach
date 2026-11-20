@@ -8,7 +8,7 @@ import { getSkipList, setSkipList } from "../db/settings";
 import { createLogger } from "../log";
 import { err, ok, type Result } from "../result";
 import type { WebContext } from "./html";
-import { handleRequest, startServer } from "./server";
+import { handleRequest, portFromEnv, startServer } from "./server";
 
 let dir: string;
 let db: Database;
@@ -46,6 +46,13 @@ const postSettings = (headers: Record<string, string>) =>
     }),
     ctx,
   );
+
+describe("portFromEnv", () => {
+  test("uses a valid SPEECH_COACH_PORT and falls back to 4777 for anything else", () => {
+    expect(portFromEnv("4790")).toBe(4790);
+    for (const bad of [undefined, "", "abc", "0", "70000", "-5", "47.5", "4790x"]) expect(portFromEnv(bad)).toBe(4777);
+  });
+});
 
 describe("startServer", () => {
   test("binds 127.0.0.1 on a real port and serves / for a matching Host", async () => {

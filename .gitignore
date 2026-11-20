@@ -2,3 +2,4 @@ node_modules/
 nightly.lock
 morning.lock
 docs/
+design-research/

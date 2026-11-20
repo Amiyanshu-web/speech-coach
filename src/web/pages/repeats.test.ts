@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openCoachDb } from "../../db/coach";
 import type { WebContext } from "../html";
-import { groupRepeats, mergeRepeats, patternLabel, repeatsPage, type RepeatItem } from "./repeats";
+import { groupRepeats, mergeRepeats, patternLabel, repeatsPage, tally, type RepeatItem } from "./repeats";
 
 type Row = { pattern: string; kind: string; said: string; better: string; day: string };
 const row = (pattern: string, day: string, said = `said ${pattern}`): Row => ({
@@ -196,10 +196,27 @@ describe("repeatsPage", () => {
   test("shows the example as a correction mark on its own line, with the kind in italic", async () => {
     ["2026-11-14", "2026-11-15", "2026-11-16"].forEach((d, i) => addIssue(i, d, "mark-pat"));
     const { html } = await get();
-    expect(html).toMatch(/<p><span class="fix"><del class="said">said-mark-pat<\/del> <ins class="better">better-mark-pat<\/ins><\/span><\/p>/);
+    expect(html).toMatch(/<p class="line"><span class="fix k-grammar" data-b="better-mark-pat"><del class="said">said-mark-pat<\/del> <ins class="better">better-mark-pat<\/ins><\/span><\/p>/);
     expect(html).toContain('<em class="kind">grammar</em>');
     expect(html).not.toContain("<table");
     expect(html).not.toContain('class="bar');
+  });
+
+  test("draws the count as tally marks: groups of five with a diagonal gate, a short last group", () => {
+    const strokes = (html: string) => html.match(/<line /g)?.length ?? 0;
+    expect(tally(22).match(/<svg /g)).toHaveLength(5);
+    expect(strokes(tally(22))).toBe(22);
+    expect(strokes(tally(5))).toBe(5);
+    expect(strokes(tally(3))).toBe(3);
+    expect(tally(3)).toContain('viewBox="0 0 17 20"');
+    expect(tally(5)).toContain('viewBox="0 0 26 20"');
+  });
+
+  test("shows the tally and the kind ring beside the headword, with the day count as text", async () => {
+    ["2026-11-14", "2026-11-15", "2026-11-16"].forEach((d, i) => addIssue(i, d, "ring-pat"));
+    const { html } = await get();
+    expect(html).toContain('<span class="tally" aria-hidden="true">');
+    expect(html).toContain('<span class="ring" aria-hidden="true">gr</span><em class="kind">grammar</em>');
   });
 
   test("shows the pattern without its kind prefix and with spaces for hyphens", async () => {
