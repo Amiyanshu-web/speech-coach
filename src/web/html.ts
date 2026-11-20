@@ -68,59 +68,102 @@ const KIND_CODE = new Map([
 
 /** The circled kind code for the margin note; the group heading or the kind word carries the meaning for assistive tech. */
 export const kindRing = (kind: string): string =>
-  KIND_CODE.has(kind) ? `<span class="ring" aria-hidden="true">${KIND_CODE.get(kind)}</span>` : "";
+  KIND_CODE.has(kind)
+    ? `<span class="ring ring-${KIND_CODE.get(kind)}" aria-hidden="true">${KIND_CODE.get(kind)}</span>`
+    : "";
 
 const wordKey = (w: string): string => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
 
-/** Which words of a list are not part of the longest run of words the two lists share, in order. */
-const droppedWords = (from: readonly string[], to: readonly string[]): boolean[] => {
-  const rows = from.length + 1;
-  const cols = to.length + 1;
-  const common = Array.from({ length: rows }, () => new Array<number>(cols).fill(0));
+/** Index pairs of the longest run of words the two lists share, in order. */
+const sharedWords = (from: readonly string[], to: readonly string[]): Array<readonly [number, number]> => {
+  const common = Array.from({ length: from.length + 1 }, () => new Array<number>(to.length + 1).fill(0));
   for (let i = from.length - 1; i >= 0; i--) {
     for (let j = to.length - 1; j >= 0; j--) {
       common[i]![j] = from[i] === to[j] ? common[i + 1]![j + 1]! + 1 : Math.max(common[i + 1]![j]!, common[i]![j + 1]!);
     }
   }
-  const dropped = new Array<boolean>(from.length).fill(true);
+  const pairs: Array<readonly [number, number]> = [];
   for (let i = 0, j = 0; i < from.length && j < to.length; ) {
-    if (from[i] === to[j]) {
-      dropped[i] = false;
-      i++;
-      j++;
-    } else if (common[i + 1]![j]! >= common[i]![j + 1]!) i++;
+    if (from[i] === to[j]) pairs.push([i++, j++]);
+    else if (common[i + 1]![j]! >= common[i]![j + 1]!) i++;
     else j++;
   }
-  return dropped;
+  return pairs;
 };
 
-/** The spoken words with only the words the better version drops inside a delete loop; the whole phrase when none can be told apart. */
-export const cutPhrase = (said: string, better: string): string => {
+/**
+ * The spoken words with a delete loop (a `del`) around each run the better version only drops.
+ * Null when the better version also adds or changes words, or keeps all of them: that is a replacement, not a cut.
+ */
+export const cutPhrase = (said: string, better: string, attrs = ""): string | null => {
   const words = said.trim().split(/\s+/);
-  const dropped = droppedWords(words.map(wordKey), better.split(/\s+/).map(wordKey));
-  if (better === "" || !dropped.some(Boolean) || dropped.every(Boolean)) return `<span class="cut">${escapeHtml(said)}</span>`;
+  const target = better.trim() === "" ? [] : better.trim().split(/\s+/);
+  const loop = (run: string): string => `<del class="said cut"${attrs}>${escapeHtml(run)}</del>`;
+  if (target.length === 0) return loop(words.join(" "));
+  const pairs = sharedWords(words.map(wordKey), target.map(wordKey));
+  const dropped = new Array<boolean>(words.length).fill(false);
+  let replaced = false;
+  let [prevSaid, prevBetter] = [-1, -1];
+  for (const [i, j] of [...pairs, [words.length, target.length] as const]) {
+    if (i - prevSaid > 1) {
+      replaced ||= j - prevBetter > 1;
+      for (let k = prevSaid + 1; k < i; k++) dropped[k] = true;
+    }
+    [prevSaid, prevBetter] = [i, j];
+  }
+  if (replaced || !dropped.some(Boolean)) return null;
   const pieces: string[] = [];
   for (let at = 0; at < words.length; ) {
     let end = at;
     while (end < words.length && dropped[end] === dropped[at]) end++;
-    const run = escapeHtml(words.slice(at, end).join(" "));
-    pieces.push(dropped[at] ? `<span class="cut">${run}</span>` : run);
+    const run = words.slice(at, end).join(" ");
+    pieces.push(dropped[at] ? loop(run) : escapeHtml(run));
     at = end;
   }
   return pieces.join(" ");
 };
 
+const LONG_FIX = 28;
+const LONG_MARGIN = 12;
+
 /**
  * The correction mark: the spoken words marked out, the better words written above them.
  * The kind picks the mark (strike, delete loop, circle, dotted underline); the index orders the pen strike animation.
  * data-b repeats the better words so the CSS can reserve their width above a short phrase.
+ * A long fix is flagged so the CSS writes it under the words instead.
  */
-export const correction = (said: string, better: string, index?: number, kind?: string): string =>
-  `<span class="fix${kind !== undefined && KIND_CODE.has(kind) ? ` k-${kind}` : ""}"${
+export const correction = (said: string, better: string, index?: number, kind?: string): string => {
+  const attrs = index === undefined ? "" : ` style="--i:${index}"`;
+  const cut = kind === "filler" ? cutPhrase(said, better, attrs) : null;
+  const known = kind !== undefined && KIND_CODE.has(kind) && (kind !== "filler" || cut !== null);
+  const long = better.length > LONG_FIX || better.length > said.length + LONG_MARGIN;
+  return `<span class="fix${known ? ` k-${kind}` : ""}${long ? " fix-long" : ""}"${
     better === "" ? "" : ` data-b="${escapeHtml(better)}"`
-  }><del class="said"${index === undefined ? "" : ` style="--i:${index}"`}>${kind === "filler" ? cutPhrase(said, better) : escapeHtml(said)}</del>${
+  }>${cut ?? `<del class="said"${attrs}>${escapeHtml(said)}</del>`}${
     better === "" ? "" : ` <ins class="better">${escapeHtml(better)}</ins>`
   }</span>`;
+};
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The mistake inside its sentence: a few words either side of the spoken words, or the mark alone when they are not in the text. */
+export const proofLine = (said: string, better: string, index: number | undefined, kind: string, heard?: string | null): string => {
+  const mark = correction(said, better, index, kind);
+  const phrase = said.trim().split(/\s+/).map(escapeRegExp).join("\\s+");
+  const edge = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
+  const found =
+    heard && phrase !== ""
+      ? new RegExp(`${edge(said.trim()[0]) ? "(?<![\\p{L}\\p{N}])" : ""}${phrase}${edge(said.trim().at(-1)) ? "(?![\\p{L}\\p{N}])" : ""}`, "iu").exec(heard)
+      : null;
+  if (!heard || !found) return `<p class="line">${mark}</p>`;
+  const beforeRaw = heard.slice(0, found.index);
+  const afterRaw = heard.slice(found.index + found[0].length);
+  const before = (/(?:\S+\s+){0,3}\S+\s+$/.exec(beforeRaw)?.[0] ?? "").trimStart();
+  const after = /^(?:\s*[^\s]+){0,4}/.exec(afterRaw)?.[0] ?? "";
+  const cutBefore = beforeRaw.trim().length > before.trim().length;
+  const cutAfter = afterRaw.trim().length > after.trim().length;
+  return `<p class="line">${cutBefore ? "&hellip; " : ""}${escapeHtml(before)}${mark}${escapeHtml(after)}${cutAfter ? " &hellip;" : ""}</p>`;
+};
 
 const FONTS =
   "https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&amp;family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&amp;display=swap";

@@ -1,5 +1,5 @@
 import { addDays, parseWisprTimestamp, todayLocal } from "../../domain/time";
-import { correction, escapeHtml, htmlResponse, kindLabel, kindRing, layout, type Handler, type Mood } from "../html";
+import { escapeHtml, htmlResponse, kindLabel, kindRing, layout, proofLine, type Handler, type Mood } from "../html";
 
 type LessonItem = { kind: string; pattern: string; said: string; better: string; practice: string };
 type IssueRow = {
@@ -73,7 +73,7 @@ export const weekdayMonth = (day: string): string => {
 const num = (n: number): string => n.toLocaleString("en-US");
 
 export const statsSentence = (words: number, issues: number): string =>
-  `${num(words)} ${words === 1 ? "word" : "words"} spoken, ${num(issues)} to improve.`;
+  `${num(words)} ${words === 1 ? "word" : "words"} spoken, <b>${num(issues)} to improve</b>.`;
 
 const MIN_WORDS = 50;
 const MIN_BASELINE_DAYS = 5;
@@ -133,17 +133,17 @@ const issuesSection = (issues: readonly IssueRow[], now: Date, nextMark: () => n
   const filters = [{ kind: "all", label: "All", rows: issues }, ...groups]
     .map(
       (g) =>
-        `<button type="button" class="filter" data-filter="${g.kind}" aria-pressed="${g.kind === "all"}">${g.label} <span class="n">${g.rows.length}</span></button>`,
+        `<button type="button" class="filter" data-filter="${escapeHtml(g.kind)}" aria-pressed="${g.kind === "all"}">${g.label} <span class="n">${g.rows.length}</span></button>`,
     )
     .join(" ");
   const sections = groups
     .filter((g) => g.rows.length > 0)
     .map(
       (g) =>
-        `<section class="issue-group" data-kind="${g.kind}"><h3>${g.label}</h3><ul class="plain issue">${g.rows
+        `<section class="issue-group" data-kind="${escapeHtml(g.kind)}"><h3>${g.label}</h3><ul class="plain issue">${g.rows
           .map(
             (i) =>
-              `<li class="mark"><p class="line">${correction(i.said, i.better, nextMark(), i.kind)}</p><p class="note">${kindRing(i.kind)}<span class="reason">${escapeHtml(i.reason)}</span></p>${heardBlock(i, now)}</li>`,
+              `<li class="mark">${proofLine(i.said, i.better, nextMark(), i.kind, i.asr_text)}<p class="note">${kindRing(i.kind)}<span class="reason">${escapeHtml(i.reason)}</span></p>${heardBlock(i, now)}</li>`,
           )
           .join("")}</ul></section>`,
     )
@@ -184,7 +184,7 @@ export const todayPage: Handler = (req, ctx) => {
     ? `<section class="lesson"><h2>Lesson</h2><ul class="plain lesson-list">${parseLesson(lessonRow.json)
         .map(
           (i) =>
-            `<li class="mark"><p class="line">${correction(i.said, i.better, nextMark(), i.kind)}</p><p class="note">${kindRing(i.kind)}<span class="kind">${escapeHtml(kindLabel(i.kind))}</span></p><p class="practice">${escapeHtml(i.practice)}</p></li>`,
+            `<li class="mark">${proofLine(i.said, i.better, nextMark(), i.kind)}<p class="note">${kindRing(i.kind)}<span class="kind vh">${escapeHtml(kindLabel(i.kind))}</span></p><p class="practice">${escapeHtml(i.practice)}</p></li>`,
         )
         .join("")}</ul></section>`
     : "";

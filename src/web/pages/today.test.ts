@@ -247,12 +247,12 @@ describe("todayPage layout", () => {
     addIssue("d1", TODAY);
     addIssue("d1", TODAY);
     const { html } = await get();
-    expect(html).toContain('<p class="stats">50 words spoken, 2 to improve.</p>');
+    expect(html).toContain('<p class="stats">50 words spoken, <b>2 to improve</b>.</p>');
   });
 
   test("statsSentence groups thousands and uses singular for one", () => {
-    expect(statsSentence(1453, 53)).toBe("1,453 words spoken, 53 to improve.");
-    expect(statsSentence(1, 1)).toBe("1 word spoken, 1 to improve.");
+    expect(statsSentence(1453, 53)).toBe("1,453 words spoken, <b>53 to improve</b>.");
+    expect(statsSentence(1, 1)).toBe("1 word spoken, <b>1 to improve</b>.");
   });
 
   test("groups issues in the order Grammar, Word choice, Fillers, Sounds ", async () => {
@@ -303,7 +303,7 @@ describe("todayPage layout", () => {
     addIssue("d1", TODAY);
     const { html } = await get();
     expect(html).toContain(
-      '<li class="mark"><p class="line"><span class="fix k-grammar" data-b="faster"><del class="said" style="--i:0">more fast</del> <ins class="better">faster</ins></span></p><p class="note"><span class="ring" aria-hidden="true">gr</span><span class="reason">comparative form</span></p>',
+      '<li class="mark"><p class="line"><span class="fix k-grammar" data-b="faster"><del class="said" style="--i:0">more fast</del> <ins class="better">faster</ins></span></p><p class="note"><span class="ring ring-gr" aria-hidden="true">gr</span><span class="reason">comparative form</span></p>',
     );
   });
 
@@ -313,17 +313,28 @@ describe("todayPage layout", () => {
     addIssue("d1", TODAY, { kind: "word", said: "w1", better: "w2" });
     addLesson(TODAY);
     const { html } = await get();
-    expect(html).toContain('<span class="fix k-filler" data-b="check"><del class="said" style="--i:3"><span class="cut">like</span> check</del>');
+    expect(html).toContain('<span class="fix k-filler" data-b="check"><del class="said cut" style="--i:3">like</del> check');
     expect(html).toContain('<span class="fix k-word" data-b="w2">');
-    expect(html).toContain('<p class="note"><span class="ring" aria-hidden="true">fl</span><span class="reason">');
-    expect(html).toContain('<p class="note"><span class="ring" aria-hidden="true">gr</span><span class="kind">Grammar</span></p><p class="practice">Say faster ten times.</p>');
+    expect(html).toContain('<p class="note"><span class="ring ring-fl" aria-hidden="true">fl</span><span class="reason">');
+    expect(html).toContain('<p class="note"><span class="ring ring-gr" aria-hidden="true">gr</span><span class="kind vh">Grammar</span></p><p class="practice">Say faster ten times.</p>');
+  });
+
+  test("shows each mistake inside the sentence the dictation text gives, escaped, and alone when the text lacks it", async () => {
+    addDictation("d1", TODAY, "2026-11-15 10:00:00.000 +00:00", "so <b>I</b> think more fast would help us here today");
+    addDictation("d2", TODAY, "2026-11-15 10:00:00.000 +00:00", "nothing relevant");
+    addIssue("d1", TODAY);
+    addIssue("d2", TODAY, { said: "other", better: "else" });
+    const { html } = await get();
+    expect(html).toContain('<p class="line">so &lt;b&gt;I&lt;/b&gt; think <span class="fix k-grammar" data-b="faster">');
+    expect(html).toContain('</span> would help us here &hellip;</p>');
+    expect(html).toContain('<p class="line"><span class="fix k-grammar" data-b="else">');
   });
 
   test("renders the 5 new words with meaning, example and what the person said", async () => {
     addWords(TODAY);
     const { html } = await get();
     expect(html.match(/class="entry"/g)?.length).toBe(5);
-    expect(html).toContain('<strong class="word">alpha</strong></p><p class="meaning">meaning of alpha</p>');
+    expect(html).toMatch(/<strong class="word">alpha<\/strong><\/p><p class="meaning">meaning of alpha<\/p><p class="example">example of alpha<\/p>/);
     expect(html).toContain("Words for today");
     expect(html).toContain('<p class="example">example of alpha</p>');
     expect(html).toContain('<p class="hw"><span class="caret" aria-hidden="true"></span><strong class="word">alpha</strong>');
@@ -341,7 +352,7 @@ describe("todayPage layout", () => {
   test("a day with done dictations and no issues still shows the stats sentence", async () => {
     addDictation("d1", TODAY);
     const { html } = await get();
-    expect(html).toContain('<p class="stats">50 words spoken, 0 to improve.</p>');
+    expect(html).toContain('<p class="stats">50 words spoken, <b>0 to improve</b>.</p>');
     expect(html).not.toContain("Nothing analysed");
   });
 
@@ -354,7 +365,7 @@ describe("todayPage layout", () => {
     ]);
     const { status, html } = await get();
     expect(status).toBe(200);
-    expect(html).toContain('<li class="mark"><p class="line"><span class="fix" data-b="b"><del class="said" style="--i:0">a</del> <ins class="better">b</ins></span></p><p class="note"><span class="kind">constructor</span></p>');
+    expect(html).toContain('<li class="mark"><p class="line"><span class="fix" data-b="b"><del class="said" style="--i:0">a</del> <ins class="better">b</ins></span></p><p class="note"><span class="kind vh">constructor</span></p>');
   });
 
   test("puts You said and the person's sentence on their own grey line", async () => {
@@ -489,7 +500,7 @@ describe("todayPage mood and pen strike", () => {
     seedDay("xt", TODAY, 30, { status: "failed", kind: "sound" });
     const { html } = await get();
     expect(html).toContain('data-mood="even"');
-    expect(html).toContain('<p class="stats">100 words spoken, 4 to improve.</p>');
+    expect(html).toContain('<p class="stats">100 words spoken, <b>4 to improve</b>.</p>');
   });
 
   test("only the 30 days before the shown day make the baseline", async () => {

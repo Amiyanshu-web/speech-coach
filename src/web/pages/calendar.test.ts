@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Database } from "bun:sqlite";
 import { openCoachDb } from "../../db/coach";
 import type { WebContext } from "../html";
-import { bucketOf, calendarPage, cellTitle, issuesPer100 } from "./calendar";
+import { bucketOf, calendarPage, cellTitle, issuesPer100, strokes } from "./calendar";
 
 const NOW = new Date("2026-11-19T10:00:00Z");
 const TODAY = "2026-11-19";
@@ -69,7 +69,12 @@ describe("calendar title", () => {
 });
 
 describe("calendarPage", () => {
+  const seedEveryMonth = (): void => {
+    for (const day of ["2026-08-25", "2026-09-10", "2026-10-10"]) seedDay(day, 100, 1);
+  };
+
   test("renders exactly 90 day links, the last being today and the first 89 days earlier", async () => {
+    seedEveryMonth();
     const days = dayLinks(await getHtml());
     expect(days).toHaveLength(90);
     expect(days[89]).toBe(TODAY);
@@ -100,6 +105,7 @@ describe("calendarPage", () => {
   });
 
   test("the local day of now decides today", async () => {
+    seedEveryMonth();
     const late = { db, now: () => new Date("2026-11-19T20:00:00Z"), offsetOf: () => -330, port: 4777 };
     const days = dayLinks(await (await calendarPage(new Request("http://127.0.0.1:4777/calendar"), late)).text());
     expect(days[89]).toBe("2026-11-20");
@@ -116,7 +122,8 @@ describe("calendarPage", () => {
     }
   });
 
-  test("draws one row per month in range, oldest first, with the day dots inside", async () => {
+  test("draws one row per month with speech, oldest first, with the day dots inside", async () => {
+    seedEveryMonth();
     const html = await getHtml();
     const months = [...html.matchAll(/<span class="cal-month">(\w+)<\/span>/g)].map((m) => m[1]);
     expect(months).toEqual(["Aug", "Sep", "Oct", "Nov"]);
@@ -124,6 +131,24 @@ describe("calendarPage", () => {
     expect(aug.match(/class="dot /g)).toHaveLength(10);
     expect(html).not.toContain("cal-grid");
     expect(html).not.toContain("cal-head");
+  });
+
+  test("hides a month with no speech at all, except the month of today", async () => {
+    seedDay("2026-10-10", 100, 1);
+    const html = await getHtml();
+    expect([...html.matchAll(/<span class="cal-month">(\w+)<\/span>/g)].map((m) => m[1])).toEqual(["Oct", "Nov"]);
+    expect(dayLinks(html)).toHaveLength(31 + 19);
+  });
+
+  test("draws as many tally strokes as the bucket number, none for the calmest day and for no speech", async () => {
+    seedDay("2026-11-10", 100, 5);
+    seedDay("2026-11-11", 100, 0);
+    const html = await getHtml();
+    const cell = (day: string) => html.match(new RegExp(`<a[^>]*href="/\\?day=${day}"[^>]*>(.*?)</a>`))?.[1] ?? "";
+    expect(cell("2026-11-10").match(/<line /g)).toHaveLength(bucketOf(5));
+    expect(cell("2026-11-11")).toBe("");
+    expect(cell("2026-11-12")).toBe("");
+    expect(strokes(3).match(/<line /g)).toHaveLength(3);
   });
 
   test("marks only today's dot, and gives every dot a title and a name", async () => {

@@ -216,7 +216,7 @@ describe("repeatsPage", () => {
     ["2026-11-14", "2026-11-15", "2026-11-16"].forEach((d, i) => addIssue(i, d, "ring-pat"));
     const { html } = await get();
     expect(html).toContain('<span class="tally" aria-hidden="true">');
-    expect(html).toContain('<span class="ring" aria-hidden="true">gr</span><em class="kind">grammar</em>');
+    expect(html).toContain('<span class="ring ring-gr" aria-hidden="true">gr</span><em class="kind">grammar</em>');
   });
 
   test("shows the pattern without its kind prefix and with spaces for hyphens", async () => {

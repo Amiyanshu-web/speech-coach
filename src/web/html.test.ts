@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { correction, cutPhrase, escapeHtml, fullDate, htmlResponse, kindLabel, kindRing, layout, localTime, redirect, shortDate } from "./html";
+import { correction, cutPhrase, proofLine, escapeHtml, fullDate, htmlResponse, kindLabel, kindRing, layout, localTime, redirect, shortDate } from "./html";
 
 describe("escapeHtml", () => {
   test("escapes & < > \" and '", () => {
@@ -102,11 +102,21 @@ describe("correction", () => {
 
   test("a filler loops only the words the better version drops", () => {
     expect(correction("to, you know, convert", "to convert", 2, "filler")).toBe(
-      '<span class="fix k-filler" data-b="to convert"><del class="said" style="--i:2">to, <span class="cut">you know,</span> convert</del> <ins class="better">to convert</ins></span>',
+      '<span class="fix k-filler" data-b="to convert">to, <del class="said cut" style="--i:2">you know,</del> convert <ins class="better">to convert</ins></span>',
+    );
+    expect(correction("like um", "pause", undefined, "filler")).toBe(
+      '<span class="fix" data-b="pause"><del class="said">like um</del> <ins class="better">pause</ins></span>',
     );
     expect(correction("um", "", undefined, "filler")).toBe(
-      '<span class="fix k-filler"><del class="said"><span class="cut">um</span></del></span>',
+      '<span class="fix k-filler"><del class="said cut">um</del></span>',
     );
+  });
+
+  test("flags a fix as long when it is over 28 characters or clearly longer than the said words", () => {
+    expect(correction("go", "went to the market").split('"')[1]).toBe("fix fix-long");
+    expect(correction("a", "x".repeat(29))).toContain("fix-long");
+    expect(correction("two words here", "two words here again")).not.toContain("fix-long");
+    expect(correction("so it does", "so it did", 0, "grammar")).not.toContain("fix-long");
   });
 
   test("escapes the better words in the width-reserving attribute", () => {
@@ -122,32 +132,72 @@ describe("correction", () => {
   });
 });
 
-describe("cutPhrase", () => {
-  test("loops separate dropped runs, ignoring case and punctuation when matching the better words", () => {
-    expect(cutPhrase("Like, are these", "Are these")).toBe('<span class="cut">Like,</span> are these');
-    expect(cutPhrase("there we I was only able to see like what we say", "I was only able to see what we call")).toBe(
-      '<span class="cut">there we</span> I was only able to see <span class="cut">like</span> what we <span class="cut">say</span>',
+describe("proofLine", () => {
+  const heard = "Dude it is late night and I'm not around from right now so can you check it";
+  test("shows up to four words either side of the said words in plain text, with the mark on the said words only", () => {
+    const html = proofLine("I'm not around", "I will be away", 1, "grammar", heard);
+    expect(html).toBe(
+      `<p class="line">&hellip; is late night and ${correction("I'm not around", "I will be away", 1, "grammar")} from right now so &hellip;</p>`,
     );
   });
 
-  test("loops the whole phrase when nothing is kept, nothing is dropped or there is no better text", () => {
-    expect(cutPhrase("blah blah", "")).toBe('<span class="cut">blah blah</span>');
-    expect(cutPhrase("a b", "a b")).toBe('<span class="cut">a b</span>');
-    expect(cutPhrase("a b", "x y")).toBe('<span class="cut">a b</span>');
+  test("matches regardless of case and not inside a longer word", () => {
+    expect(proofLine("NOT", "never", 0, "grammar", "it is not here")).toContain("it is <span");
+    expect(proofLine("not", "never", 0, "grammar", "a notable day")).toBe(`<p class="line">${correction("not", "never", 0, "grammar")}</p>`);
+  });
+
+  test("falls back to the mark alone when there is no text or the words are not in it, and escapes the context", () => {
+    const alone = `<p class="line">${correction("x", "y", 0, "word")}</p>`;
+    expect(proofLine("x", "y", 0, "word")).toBe(alone);
+    expect(proofLine("x", "y", 0, "word", null)).toBe(alone);
+    expect(proofLine("x", "y", 0, "word", "nothing here")).toBe(alone);
+    expect(proofLine("x", "y", 0, "word", "<b>a</b> x <i>b</i>")).toContain("&lt;b&gt;a&lt;/b&gt; <span");
+  });
+
+  test("keeps the whole text with no ellipsis when it is short", () => {
+    expect(proofLine("b", "c", 0, "word", "a b d")).toBe(`<p class="line">a ${correction("b", "c", 0, "word")} d</p>`);
+  });
+});
+
+describe("cutPhrase", () => {
+  test("loops separate dropped runs, ignoring case and punctuation when matching the better words", () => {
+    expect(cutPhrase("Like, are these", "Are these")).toBe('<del class="said cut">Like,</del> are these');
+    expect(cutPhrase("to, you know, convert", "to convert")).toBe('to, <del class="said cut">you know,</del> convert');
+    expect(cutPhrase("a um b like c", "a b c", ' style="--i:1"')).toBe(
+      'a <del class="said cut" style="--i:1">um</del> b <del class="said cut" style="--i:1">like</del> c',
+    );
+  });
+
+  test("loops the whole phrase when there is no better text", () => {
+    expect(cutPhrase("blah blah", "")).toBe('<del class="said cut">blah blah</del>');
+    expect(cutPhrase("  blah blah ", "  ")).toBe('<del class="said cut">blah blah</del>');
+  });
+
+  test("is null when the better version replaces words, keeps none or drops none: that is a strike, not a cut", () => {
+    expect(cutPhrase("a b", "a b")).toBeNull();
+    expect(cutPhrase("a b", "x y")).toBeNull();
+    expect(cutPhrase("like um", "pause")).toBeNull();
+    expect(
+      cutPhrase(
+        "It only like saves the textual version of that after post like pre processing it",
+        "It only saves the text after processing it",
+      ),
+    ).toBeNull();
+    expect(cutPhrase("there we I was only able to see like what we say", "I was only able to see what we call")).toBeNull();
   });
 
   test("escapes the said words", () => {
-    expect(cutPhrase("<b>x</b> y", "y")).toBe('<span class="cut">&lt;b&gt;x&lt;/b&gt;</span> y');
+    expect(cutPhrase("<b>x</b> y", "y")).toBe('<del class="said cut">&lt;b&gt;x&lt;/b&gt;</del> y');
   });
 });
 
 describe("kindRing", () => {
   test("gives each known kind its circled code, hidden from assistive tech, and nothing for an unknown kind", () => {
     expect(["grammar", "word", "filler", "sound"].map(kindRing)).toEqual([
-      '<span class="ring" aria-hidden="true">gr</span>',
-      '<span class="ring" aria-hidden="true">wc</span>',
-      '<span class="ring" aria-hidden="true">fl</span>',
-      '<span class="ring" aria-hidden="true">so</span>',
+      '<span class="ring ring-gr" aria-hidden="true">gr</span>',
+      '<span class="ring ring-wc" aria-hidden="true">wc</span>',
+      '<span class="ring ring-fl" aria-hidden="true">fl</span>',
+      '<span class="ring ring-so" aria-hidden="true">so</span>',
     ]);
     expect(kindRing("constructor")).toBe("");
   });
@@ -216,7 +266,7 @@ describe("style.css", () => {
   const selectors = [
     ".top", ".brand", "nav", ".fix", ".entries", ".word", ".issue", ".filter", "button.text", "button.primary",
     "form", "fieldset", "label", "input", "textarea", "select", ".vh", ".hero", ".daynum", ".dayname",
-    ".cal-row", ".cal-month", ".cal-dots", ".dot", ".cal-0", ".cal-1", ".cal-2", ".cal-3", ".cal-4", ".cal-grey",
+    ".cal-row", ".cal-month", ".cal-dots", ".dot", ".cal-grey",
     ".cal-legend", "mark", ".empty", ".error", ".fixed", ".status-failed",
   ];
 
@@ -241,7 +291,7 @@ describe("style.css rules", () => {
       ["nonrepro", "#8DB8E2", "#375C82"],
       ["red", "#C42B1C", "#FF7A6B"],
       ["blue", "#1D5BB3", "#86B6FF"],
-      ["green", "#2E7D4F", "#6BCB93"],
+      ["green", "#2A7347", "#6BCB93"],
     ]) {
       expect(light).toContain(`--${t}: ${l};`);
       expect(dark).toContain(`--${t}: ${d};`);
@@ -265,6 +315,17 @@ describe("style.css rules", () => {
     expect(css).not.toMatch(/\.side|\.card|\.pill|\.bar|table|\.word-card|border-radius: (?!50%|0)/);
   });
 
+  test("colours the word-choice ring blue and the others red", () => {
+    expect(css).toMatch(/\.ring \{[^}]*color: var\(--red\)/);
+    expect(css).toMatch(/\.ring\.ring-wc \{ color: var\(--blue\); \}/);
+  });
+
+  test("draws the margin rule once down the page, not once per row, and shows the said words dimmer than the fix", () => {
+    expect(css).toMatch(/main:has\(\.hero\), main:has\(\.entries\) \{ background: linear-gradient\(var\(--nonrepro\), var\(--nonrepro\)\) no-repeat right var\(--margin\)/);
+    expect(css).not.toContain("::before { content: \"\"; position: absolute; top: 0; bottom: 0; right: var(--margin)");
+    expect(css).toMatch(/\.fix del \{ color: var\(--graphite\);/);
+  });
+
   test("calendar days are 14px tally cells with a 5px gap and a hit area past the cell, so 31 days fit the 560px content width", () => {
     expect(css).toMatch(/\.dot \{[^}]*width: 14px; height: 22px/);
     expect(css).toMatch(/\.cal-dots \{ display: flex; flex-wrap: wrap; gap: 6px 5px/);
@@ -273,15 +334,19 @@ describe("style.css rules", () => {
     expect(monthLabel + 31 * 14 + 30 * 5).toBeLessThanOrEqual(900 - 2 * 32 - 2 * 24);
   });
 
-  test("draws one tally stroke per bucket step, from none for the calmest day to four", () => {
-    for (const n of [0, 1, 2, 3, 4]) expect(css).toContain(`.cal-${n} { --n: ${n}; }`);
-    expect(css).toMatch(/\.dot::before \{[^}]*width: calc\(var\(--n, 0\) \* 3px\)[^}]*repeating-linear-gradient\(90deg, var\(--red\)/);
+  test("draws the calendar tally strokes as red lines in the cell", () => {
+    expect(css).toMatch(/\.dot line \{[^}]*stroke: var\(--red\)/);
+    expect(css).toMatch(/\.dot svg \{ position: absolute; inset: 0;/);
+  });
+
+  test("keeps the calendar legend on one line on a phone", () => {
+    expect(css).toMatch(/@media \(max-width: 419px\) \{ \.cal-legend \{ flex-wrap: nowrap;/);
   });
 
   test("defines mood sheets as tokens, light and dark, and overrides --sheet under data-mood", () => {
     for (const [t, l, d] of [
       ["sheet-good", "#F0F8F3", "#19261F"],
-      ["sheet-busy", "#FCF1EF", "#2A1F20"],
+      ["sheet-busy", "#EAEFF6", "#20262F"],
     ]) {
       expect(light).toContain(`--${t}: ${l};`);
       expect(dark).toContain(`--${t}: ${d};`);
@@ -295,7 +360,8 @@ describe("style.css rules", () => {
     expect(css).toMatch(/\.fix del \{[^}]*linear-gradient\(var\(--red\), var\(--red\)\)[^}]*box-decoration-break: clone/);
     expect(css).toMatch(/@keyframes strike \{ from \{ background-size: 0% 1\.5px; \} to \{ background-size: 100% 1\.5px; \} \}/);
     expect(css).toMatch(/\[data-page="today"\] \.fix del \{[^}]*animation: strike 420ms ease-out both[^}]*min\(var\(--i, 0\), 17\) \* 50ms/);
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \[data-page="today"\] \.fix del \{ animation: none; \} \}/);
+    const reduce = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce) { [data-page"));
+    expect(reduce).toMatch(/^@media \(prefers-reduced-motion: reduce\) \{ \[data-page="today"\] \.fix del \{ animation: none; \} \}/);
     expect(css).toMatch(/@media print \{[^}]*\.fix[^{]*del \{[^}]*line-through/);
   });
 
@@ -306,11 +372,12 @@ describe("style.css rules", () => {
     expect(css).toMatch(/\.fix\.k-sound del \{[^}]*underline dotted var\(--red\)/);
   });
 
-  test("writes the fix above the words and moves it under them in a narrow line", () => {
-    expect(css).toMatch(/\.fix ins \{ position: absolute;[^}]*bottom: calc\(100% - 1\.15em\)/);
+  test("writes the fix above the words, and under them only for a fix flagged long", () => {
+    expect(css).toMatch(/\.fix ins \{ position: absolute;[^}]*bottom: calc\(100% - 1\.2em\)/);
     expect(css).toMatch(/\.fix::after \{ content: attr\(data-b\); display: block; height: 0;[^}]*visibility: hidden/);
-    expect(css).toMatch(/@container line \(max-width: 24rem\) \{[\s\S]*?\.fix ins \{ position: static; display: block;/);
-    expect(css).toMatch(/\.line \{[^}]*overflow-wrap: anywhere;[^}]*container: line \/ inline-size/);
+    expect(css).toMatch(/\.fix\.fix-long ins \{ position: static; display: block;/);
+    expect(css).not.toContain("@container");
+    expect(css).toMatch(/\.line \{[^}]*overflow-wrap: anywhere;/);
   });
 
   test("keeps every mark visible in forced-colors mode", () => {
